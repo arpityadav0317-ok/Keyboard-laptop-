@@ -1,0 +1,60 @@
+name: Build Mobile APK & Windows Companion
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip project archive
+        run: |
+          if [ -f UniversalKeyboardMouse.zip ]; then
+            unzip -o UniversalKeyboardMouse.zip
+            cp -r universal-keyboard-mouse/mobile_app .
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+      - name: Install Flutter dependencies
+        working-directory: mobile_app
+        run: flutter pub get
+      - name: Build Android Debug APK
+        working-directory: mobile_app
+        run: flutter build apk --debug
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: UniversalKeyboardMouse-Android-APK
+          path: mobile_app/build/app/outputs/flutter-apk/app-debug.apk
+
+  build-windows-companion:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unzip project archive
+        shell: pwsh
+        run: |
+          if (Test-Path UniversalKeyboardMouse.zip) {
+            Expand-Archive -Path UniversalKeyboardMouse.zip -DestinationPath . -Force
+            Copy-Item -Path universal-keyboard-mouse/windows_companion -Destination . -Recurse -Force
+          }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish self-contained Windows x64 Companion
+        working-directory: windows_companion
+        run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+      - name: Upload Windows Companion EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: UniversalKbReceiver-Windows-x64
+          path: windows_companion/publish/UniversalKbReceiver.exe
